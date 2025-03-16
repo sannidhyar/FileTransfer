@@ -1,0 +1,22 @@
+{
+    "service_name": "WiFi File Transfer",
+    "max_file_size_gb": 16,
+    "allowed_extensions": [
+        "txt", "srt", "pdf", "png", "jpg", "jpeg", "gif", "mp3", "mp4", "mkv",
+        "zip", "rar", "doc", "docx", "xls", "xlsx", "ppt", "pptx"
+    ],
+    "trans_stores": [
+        {
+            "name": "trans_store_1",
+            "path": "/media/t1",
+            "max_size_gb": 0,
+            "enabled": true
+        },
+        {
+            "name": "trans_store_2",
+            "path": "/media/t2",
+            "max_size_gb": 0,
+            "enabled": true
+        }
+    ]
+}

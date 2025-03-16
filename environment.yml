@@ -1,0 +1,13 @@
+name: wifitransfer
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.9
+  - flask=2.0.1
+  - pip=21.2.4
+  - werkzeug=2.0.1
+  - pip:
+    - zeroconf==0.38.6
+    - netifaces==0.11.0
+    - Flask-Cors==3.0.10 

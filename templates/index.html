@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WiFi File Transfer</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+    <!-- Backup Bootstrap Icons source in case the primary one fails -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-icons/1.10.5/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#3498db">
+</head>
+<body>
+    <div class="theme-toggle" id="theme-toggle" title="Toggle dark mode">
+        <i class="bi bi-moon-fill" id="theme-icon"></i>
+    </div>
+
+    <div class="container">
+        <header class="my-4 py-3">
+            <div class="d-flex align-items-center justify-content-center text-center">
+                <div>
+                    <svg class="logo" width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM10 16.5V7.5L16 12L10 16.5Z" fill="#0d6efd"/>
+                    </svg>
+                </div>
+                <div class="ms-3 text-start">
+                    <h1 class="display-5 fw-bold">WiFi File Transfer</h1>
+                    <div class="d-flex align-items-center">
+                        <p class="text-muted lead mb-0">Share your files across your network</p>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-8">
+                <div class="card shadow-sm animated-card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <h5 class="card-title mb-0"><i class="bi bi-files"></i> Files</h5>
+                            <button id="refresh-files" class="btn btn-sm btn-outline-secondary ms-2" title="Refresh file list">
+                                <i class="bi bi-arrow-clockwise"></i>
+                            </button>
+                        </div>
+                        <a href="{{ url_for('upload_file') }}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-cloud-upload"></i> Upload Files
+                        </a>
+                    </div>
+                    <div class="card-body">
+                        {% if files %}
+                            <div class="table-responsive">
+                                <table class="table">
+                                    <thead>
+                                        <tr>
+                                            <th>Name</th>
+                                            <th>Size</th>
+                                            <th>Store</th>
+                                            <th>Modified</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="file-list">
+                                        {% for file in files %}
+                                        <tr class="file-row" data-filename="{{ file.name }}">
+                                            <td>
+                                                <div class="file-name">
+                                                    <span class="name-part">{{ file.name.rsplit('.', 1)[0] }}</span>{% if '.' in file.name %}<span class="file-extension">.{{ file.name.rsplit('.', 1)[1] }}</span>{% endif %}
+                                                </div>
+                                            </td>
+                                            <td>{{ file.size|format_size }}</td>
+                                            <td><span class="badge bg-secondary">{{ file.store_name }}</span></td>
+                                            <td>{{ file.modified|timestamp_to_date }}</td>
+                                            <td>
+                                                <div class="btn-group">
+                                                    <a href="{{ url_for('download_file', filename=file.name) }}" class="btn btn-sm btn-primary download-btn">
+                                                        <i class="bi bi-download"></i><span class="d-none d-md-inline ms-1">Download</span>
+                                                    </a>
+                                                    <button class="btn btn-sm btn-outline-danger delete-file" data-filename="{{ file.name }}">
+                                                        <i class="bi bi-trash"></i><span class="d-none d-md-inline ms-1">Delete</span>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle"></i> No files have been uploaded yet.
+                                <a href="{{ url_for('upload_file') }}" class="alert-link">Upload some files</a> to get started.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card shadow-sm animated-card">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-hdd-rack"></i> Storage</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if stores %}
+                            {% for store in stores %}
+                                <div class="mb-3">
+                                    <div class="d-flex justify-content-between">
+                                        <h6 class="mb-1">{{ store.name }}</h6>
+                                        <span class="badge {% if store.free_space_gb < 1 %}bg-danger{% elif store.free_space_gb < 5 %}bg-warning{% else %}bg-success{% endif %}">
+                                            {{ store.free_space_gb }} GB free
+                                        </span>
+                                    </div>
+                                    <div class="progress" style="height: 10px;">
+                                        <div 
+                                            class="progress-bar {% if store.usage_percent > 90 %}bg-danger{% elif store.usage_percent > 70 %}bg-warning{% else %}bg-success{% endif %}" 
+                                            role="progressbar" 
+                                            style="width: {{ store.usage_percent }}%;" 
+                                            aria-valuenow="{{ store.usage_percent }}" 
+                                            aria-valuemin="0" 
+                                            aria-valuemax="100"
+                                        ></div>
+                                    </div>
+                                    <small class="text-muted mt-1 d-block">
+                                        {{ store.file_count }} files | {{ store.usage_percent }}% used | Store #{{ store.store_number }}
+                                    </small>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i> No storage locations configured.
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="card shadow-sm animated-card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-info-circle"></i> Transfer Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <h6>System Information:</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="bi bi-check-circle text-success"></i> Max file size: {{ config.get('max_file_size_gb', 16) }}GB</li>
+                                <li><i class="bi bi-check-circle text-success"></i> Active trans stores: {{ stores|length }}</li>
+                                <li><i class="bi bi-check-circle text-success"></i> {{ files|length }} file{{ 's' if files|length != 1 else '' }} available</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm animated-card mt-4">
+                    <div class="card-header">
+                        <h5 class="card-title mb-0"><i class="bi bi-wifi"></i> Network Access</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="card-text">Access this server from other devices using one of these addresses:</p>
+                        <ul class="list-group list-group-flush">
+                            {% for interface in interfaces %}
+                                <li class="list-group-item bg-transparent">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <i class="bi bi-ethernet"></i> {{ interface.name }}
+                                        </div>
+                                        <a href="http://{{ interface.ip }}:5000" target="_blank" class="server-url">
+                                            {{ interface.ip }}:5000
+                                        </a>
+                                    </div>
+                                </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="alert alert-success download-progress d-none">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="download-status"><i class="bi bi-download"></i> Downloading file...</span>
+                <button type="button" class="btn-close close-progress" aria-label="Close"></button>
+            </div>
+            <div class="progress mt-2">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+            </div>
+            <div class="d-flex justify-content-between mt-1">
+                <small class="text-muted download-speed">Speed: 0 KB/s</small>
+                <small class="text-muted download-eta">ETA: Calculating...</small>
+            </div>
+        </div>
+
+        <div class="alert alert-info mt-4 d-none" id="android-help">
+            <h5><i class="bi bi-android"></i> Android Download Instructions</h5>
+            <p>If you're having trouble downloading files:</p>
+            <ol>
+                <li>Try rotating your device to landscape mode for better view of the buttons.</li>
+                <li>If issues persist, try using Chrome or Samsung Internet browser.</li>
+                <li>Make sure your phone's download folder has sufficient space.</li>
+                <li>Check your notification panel to see download progress.</li>
+            </ol>
+        </div>
+
+        <footer class="my-5 pt-5 text-muted text-center text-small">
+            <p class="mb-1">&copy; 2023 WiFi File Transfer</p>
+            <ul class="list-inline">
+                <li class="list-inline-item"><a href="https://github.com/yourusername/wifi-file-transfer">GitHub</a></li>
+                <li class="list-inline-item"><a href="#">About</a></li>
+                <li class="list-inline-item"><a href="#">Documentation</a></li>
+            </ul>
+        </footer>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Debug info for theme toggle
+            console.log('DOM fully loaded');
+            
+            // Initialize theme
+            initTheme();
+            
+            // More robust theme toggle handling
+            const themeToggle = document.getElementById('theme-toggle');
+            console.log('Theme toggle element:', themeToggle);
+            
+            // Platform detection for debugging
+            const isPc = !(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+            console.log('Is PC platform:', isPc);
+            
+            if (themeToggle) {
+                // Clear any existing event listeners (in case of duplicates)
+                const newThemeToggle = themeToggle.cloneNode(true);
+                themeToggle.parentNode.replaceChild(newThemeToggle, themeToggle);
+                
+                // Add specific PC click handler
+                if (isPc) {
+                    console.log('Adding PC-specific click handler');
+                    newThemeToggle.addEventListener('click', function(e) {
+                        console.log('PC theme toggle clicked');
+                        e.preventDefault();
+                        toggleTheme();
+                        return false;
+                    });
+                }
+                
+                // Add mobile handlers
+                if (!isPc) {
+                    ['click', 'touchend'].forEach(eventType => {
+                        newThemeToggle.addEventListener(eventType, function(e) {
+                            if (eventType === 'touchend') {
+                                e.preventDefault(); // Prevent double-firing on touch devices
+                            }
+                            console.log('Mobile theme toggle', eventType);
+                            toggleTheme();
+                        });
+                    });
+                }
+                
+                console.log('Theme toggle event listeners added for', isPc ? 'PC' : 'mobile');
+            } else {
+                console.error('Theme toggle element not found!');
+            }
+            
+            
+            // Keyboard shortcut for theme toggle (Alt+T)
+            document.addEventListener('keydown', function(e) {
+                if (e.altKey && e.key === 't') {
+                    console.log('Theme toggle keyboard shortcut detected');
+                    toggleTheme();
+                }
+            });
+            
+            function toggleTheme() {
+                const currentTheme = document.documentElement.getAttribute('data-theme') || 'light';
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                console.log(`Toggling theme from ${currentTheme} to ${newTheme}`);
+                
+                // Set the new theme
+                document.documentElement.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                
+                // Update the icon
+                updateThemeIcon(newTheme);
+                
+                // Add visual feedback for theme change
+                const body = document.querySelector('body');
+                if (body) {
+                    body.classList.add('theme-transition');
+                    setTimeout(() => body.classList.remove('theme-transition'), 1000);
+                }
+                
+                console.log('Theme toggled to:', newTheme);
+            }
+            
+            // Improve download button handling for mobile devices
+            const downloadButtons = document.querySelectorAll('.download-btn');
+            downloadButtons.forEach(button => {
+                button.addEventListener('click', function(e) {
+                    // For Android and iOS browsers, fallback handling in case the download attribute isn't supported
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    const isAndroid = /Android/i.test(navigator.userAgent);
+                    
+                    if (isMobile) {
+                        const downloadUrl = this.getAttribute('href');
+                        const filename = downloadUrl.split('/').pop();
+                        
+                        // Show download in progress indicator
+                        const downloadProgress = document.querySelector('.download-progress');
+                        if (downloadProgress) {
+                            // Reset progress elements
+                            const progressBar = downloadProgress.querySelector('.progress-bar');
+                            const speedElement = downloadProgress.querySelector('.download-speed');
+                            const etaElement = downloadProgress.querySelector('.download-eta');
+                            
+                            if (progressBar) progressBar.style.width = '0%';
+                            if (speedElement) speedElement.textContent = 'Speed: Calculating...';
+                            if (etaElement) etaElement.textContent = 'ETA: Calculating...';
+                            
+                            downloadProgress.classList.remove('d-none');
+                            const statusElement = downloadProgress.querySelector('.download-status');
+                            if (statusElement) {
+                                statusElement.innerHTML = `<i class="bi bi-download"></i> Downloading ${filename}...`;
+                            }
+                            
+                            // Set up fake progress simulation for better UX on Android
+                            if (isAndroid) {
+                                console.log('Setting up Android-specific download feedback');
+                                
+                                let progress = 0;
+                                let startTime = Date.now();
+                                let bytesTotal = Math.floor(Math.random() * 5000000) + 1000000; // Simulate 1-6 MB file
+                                let bytesLoaded = 0;
+                                
+                                const updateInterval = setInterval(() => {
+                                    // Calculate progress
+                                    progress += (Math.random() * 15);
+                                    if (progress > 100) progress = 100;
+                                    
+                                    // Calculate bytes loaded based on progress
+                                    bytesLoaded = Math.floor((progress / 100) * bytesTotal);
+                                    
+                                    // Calculate elapsed time and speed
+                                    const elapsedTime = (Date.now() - startTime) / 1000; // in seconds
+                                    const speedBps = bytesLoaded / elapsedTime;
+                                    
+                                    // Format speed nicely
+                                    let speedText;
+                                    if (speedBps > 1048576) {
+                                        speedText = `Speed: ${(speedBps / 1048576).toFixed(2)} MB/s`;
+                                    } else if (speedBps > 1024) {
+                                        speedText = `Speed: ${(speedBps / 1024).toFixed(2)} KB/s`;
+                                    } else {
+                                        speedText = `Speed: ${Math.floor(speedBps)} B/s`;
+                                    }
+                                    
+                                    // Calculate ETA
+                                    const bytesRemaining = bytesTotal - bytesLoaded;
+                                    const etaSeconds = speedBps > 0 ? Math.ceil(bytesRemaining / speedBps) : 0;
+                                    const etaText = etaSeconds > 0 ? 
+                                        `ETA: ${Math.floor(etaSeconds / 60)}m ${etaSeconds % 60}s` : 
+                                        'ETA: Finishing...';
+                                    
+                                    // Update UI
+                                    if (progressBar) progressBar.style.width = `${progress}%`;
+                                    if (speedElement) speedElement.textContent = speedText;
+                                    if (etaElement) etaElement.textContent = etaText;
+                                    
+                                    // Stop updating when progress completes
+                                    if (progress >= 100) {
+                                        clearInterval(updateInterval);
+                                        if (statusElement) {
+                                            statusElement.innerHTML = `<i class="bi bi-check-circle"></i> Downloaded ${filename}`;
+                                        }
+                                        
+                                        // Hide after 2 more seconds
+                                        setTimeout(() => {
+                                            downloadProgress.classList.add('d-none');
+                                        }, 2000);
+                                    }
+                                }, 300);
+                                
+                                // Ensure we clear the interval if the progress is closed manually
+                                const closeBtn = downloadProgress.querySelector('.close-progress');
+                                if (closeBtn) {
+                                    closeBtn.addEventListener('click', function() {
+                                        clearInterval(updateInterval);
+                                    }, { once: true });
+                                }
+                            } else {
+                                // For non-Android mobile, just show static progress
+                                // Auto-hide after 5 seconds
+                                setTimeout(() => {
+                                    downloadProgress.classList.add('d-none');
+                                }, 5000);
+                            }
+                        }
+                        
+                        // Add delay to allow the UI to update before the browser handles the download
+                        setTimeout(() => {
+                            // Continue with normal navigation
+                            return true;
+                        }, 100);
+                    }
+                });
+            });
+            
+            // Handle file deletion
+            const deleteButtons = document.querySelectorAll('.delete-file');
+            const processingDelete = new Set(); // Track files being deleted to prevent duplicates
+            
+            // deleteButtons.forEach(button => {
+            //     button.addEventListener('click', function() {
+            //         const filename = this.getAttribute('data-filename');
+                    
+            //         // Check if this file is already being processed for deletion
+            //         if (processingDelete.has(filename)) {
+            //             return; // Already processing this file, don't ask again
+            //         }
+                    
+            //         if (confirm(`Are you sure you want to delete "${filename}"?`)) {
+            //             // Add to processing set to prevent duplicate operations
+            //             processingDelete.add(filename);
+                        
+            //             // Disable the button to prevent additional clicks
+            //             this.disabled = true;
+            //             this.classList.add('disabled');
+                        
+            //             deleteFile(filename);
+            //         }
+            //     });
+            // });
+            
+            // Function to delete a file
+            function deleteFile(filename) {
+                fetch(`/delete/${encodeURIComponent(filename)}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the row from the table
+                        const fileRow = document.querySelector(`.file-row[data-filename="${filename}"]`);
+                        if (fileRow) {
+                            fileRow.remove();
+                        }
+                        
+                        // Check if there are any files left
+                        const fileRows = document.querySelectorAll('.file-row');
+                        if (fileRows.length === 0) {
+                            const fileList = document.getElementById('file-list');
+                            if (fileList) {
+                                fileList.innerHTML = `
+                                    <tr>
+                                        <td colspan="5">
+                                            <div class="alert alert-info mb-0">
+                                                <i class="bi bi-info-circle"></i> No files have been uploaded yet.
+                                                <a href="{{ url_for('upload_file') }}" class="alert-link">Upload some files</a> to get started.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }
+                        }
+                    } else {
+                        alert('Error deleting file: ' + (data.error || 'Unknown error'));
+                    }
+                    
+                    // Remove from processing set whether successful or not
+                    processingDelete.delete(filename);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting the file.');
+                    
+                    // Remove from processing set on error
+                    processingDelete.delete(filename);
+                    
+                    // Re-enable the button
+                    const button = document.querySelector(`.delete-file[data-filename="${filename}"]`);
+                    if (button) {
+                        button.disabled = false;
+                        button.classList.remove('disabled');
+                    }
+                });
+            }
+            
+            // Close download progress when close button is clicked
+            const closeProgressBtn = document.querySelector('.close-progress');
+            if (closeProgressBtn) {
+                closeProgressBtn.addEventListener('click', function() {
+                    const downloadProgress = document.querySelector('.download-progress');
+                    if (downloadProgress) {
+                        downloadProgress.classList.add('d-none');
+                    }
+                });
+            }
+            
+            // Handle refresh button click
+            const refreshButton = document.getElementById('refresh-files');
+            if (refreshButton) {
+                refreshButton.addEventListener('click', function() {
+                    // Additional logging for Android debugging
+                    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                    console.log('Refresh button clicked on ' + (isMobile ? 'mobile' : 'desktop'));
+                    
+                    // Show loading state
+                    this.disabled = true;
+                    const originalContent = this.innerHTML;
+                    this.innerHTML = '<i class="bi bi-arrow-repeat spin"></i>';
+                    
+                    // Set a timeout to prevent hanging operations
+                    const refreshTimeout = setTimeout(() => {
+                        console.error('Refresh operation timed out');
+                        this.innerHTML = originalContent;
+                        this.disabled = false;
+                        
+                        // Show timeout message
+                        const alertContainer = document.createElement('div');
+                        alertContainer.className = 'alert alert-warning alert-dismissible fade show mt-3';
+                        alertContainer.innerHTML = `
+                            <i class="bi bi-exclamation-triangle"></i> Refresh timed out. Please try again.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        
+                        const cardBody = document.querySelector('.card-body');
+                        if (cardBody) {
+                            cardBody.prepend(alertContainer);
+                            setTimeout(() => alertContainer.remove(), 5000);
+                        }
+                    }, 15000); // 15 second timeout
+                    
+                    // Use a more direct approach for Android
+                    if (isMobile) {
+                        console.log('Using Android-optimized refresh approach');
+                        // For Android, just reload the page - simpler and more reliable
+                        window.location.reload();
+                        return;
+                    }
+                    
+                    // More robust fetch with explicit error handling for PC
+                    fetch(window.location.href, {
+                        method: 'GET',
+                        cache: 'no-cache', // Ensure fresh content
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': 'text/html'
+                        }
+                    })
+                    .then(response => {
+                        console.log('Fetch response received:', response.status);
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok: ' + response.status);
+                        }
+                        return response.text();
+                    })
+                    .then(html => {
+                        // Clear the timeout since we got a response
+                        clearTimeout(refreshTimeout);
+                        
+                        console.log('HTML response received, length:', html.length);
+                        try {
+                            // Create a temporary container to hold the HTML
+                            const tempContainer = document.createElement('div');
+                            tempContainer.innerHTML = html;
+                            
+                            // Find the file list in the parsed HTML
+                            const newFileList = tempContainer.querySelector('#file-list');
+                            const currentFileList = document.getElementById('file-list');
+                            
+                            if (newFileList && currentFileList) {
+                                console.log('File lists found, updating...');
+                                // Update the file list with a simpler approach
+                                currentFileList.innerHTML = newFileList.innerHTML;
+                                
+                                // Check if there are files
+                                if (newFileList.children.length === 0) {
+                                    console.log('No files found in the updated list');
+                                    const tableResponsive = currentFileList.closest('.table-responsive');
+                                    if (tableResponsive) {
+                                        tableResponsive.innerHTML = `
+                                            <div class="alert alert-info mb-0">
+                                                <i class="bi bi-info-circle"></i> No files have been uploaded yet.
+                                                <a href="{{ url_for('upload_file') }}" class="alert-link">Upload some files</a> to get started.
+                                            </div>
+                                        `;
+                                    }
+                                } else {
+                                    console.log('Found', newFileList.children.length, 'files in updated list');
+                                }
+                                
+                                // Re-attach event listeners to new buttons
+                                console.log('Re-attaching event listeners');
+                                reattachEventListeners();
+                                
+                                // Show success message
+                                const alertContainer = document.createElement('div');
+                                alertContainer.className = 'alert alert-success alert-dismissible fade show mt-3';
+                                alertContainer.innerHTML = `
+                                    <i class="bi bi-check-circle"></i> File list refreshed successfully.
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                                `;
+                                
+                                const cardBody = currentFileList.closest('.card-body');
+                                if (cardBody) {
+                                    cardBody.prepend(alertContainer);
+                                    
+                                    // Auto-dismiss after 3 seconds
+                                    setTimeout(() => {
+                                        alertContainer.classList.remove('show');
+                                        setTimeout(() => alertContainer.remove(), 150);
+                                    }, 3000);
+                                }
+                            } else {
+                                console.error('Could not find file lists in HTML');
+                                throw new Error('File list elements not found in response');
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing HTML response:', parseError);
+                            throw parseError;
+                        }
+                        
+                        // Restore button state
+                        this.innerHTML = originalContent;
+                        this.disabled = false;
+                    })
+                    .catch(error => {
+                        // Clear the timeout since we got a response (even if it's an error)
+                        clearTimeout(refreshTimeout);
+                        
+                        console.error('Error refreshing file list:', error);
+                        
+                        // Show error message
+                        const alertContainer = document.createElement('div');
+                        alertContainer.className = 'alert alert-danger alert-dismissible fade show mt-3';
+                        alertContainer.innerHTML = `
+                            <i class="bi bi-exclamation-triangle"></i> Error refreshing file list. Please try again.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        `;
+                        
+                        const cardBody = document.querySelector('.card-body');
+                        if (cardBody) {
+                            cardBody.prepend(alertContainer);
+                            
+                            // Auto-dismiss after 5 seconds
+                            setTimeout(() => {
+                                alertContainer.classList.remove('show');
+                                setTimeout(() => alertContainer.remove(), 150);
+                            }, 5000);
+                        }
+                        
+                        // Restore button state
+                        this.innerHTML = originalContent;
+                        this.disabled = false;
+                    });
+                });
+            }
+            
+            // Helper function to reattach event listeners after refresh
+            function reattachEventListeners() {
+                // Re-attach event listeners to delete buttons
+                const newDeleteButtons = document.querySelectorAll('.delete-file');
+                newDeleteButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const filename = this.getAttribute('data-filename');
+                        
+                        // Check if this file is already being processed for deletion
+                        if (processingDelete.has(filename)) {
+                            return; // Already processing this file, don't ask again
+                        }
+                        
+                        if (confirm(`Are you sure you want to delete "${filename}"?`)) {
+                            // Add to processing set to prevent duplicate operations
+                            processingDelete.add(filename);
+                            
+                            // Disable the button to prevent additional clicks
+                            this.disabled = true;
+                            this.classList.add('disabled');
+                            
+                            deleteFile(filename);
+                        }
+                    });
+                });
+                
+                // Re-attach event listeners to download buttons
+                const newDownloadButtons = document.querySelectorAll('.download-btn');
+                newDownloadButtons.forEach(button => {
+                    button.addEventListener('click', function(e) {
+                        const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                        
+                        if (isMobile) {
+                            const downloadUrl = this.getAttribute('href');
+                            const filename = downloadUrl.split('/').pop();
+                            
+                            const downloadProgress = document.querySelector('.download-progress');
+                            if (downloadProgress) {
+                                downloadProgress.classList.remove('d-none');
+                                const statusElement = downloadProgress.querySelector('.download-status');
+                                if (statusElement) {
+                                    statusElement.innerHTML = `<i class="bi bi-download"></i> Downloading ${filename}...`;
+                                }
+                                
+                                setTimeout(() => {
+                                    downloadProgress.classList.add('d-none');
+                                }, 5000);
+                            }
+                            
+                            setTimeout(() => {
+                                return true;
+                            }, 100);
+                        }
+                    });
+                });
+            }
+            
+            // Add spinning animation CSS for refresh button
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes spin {
+                    from { transform: rotate(0deg); }
+                    to { transform: rotate(360deg); }
+                }
+                .spin {
+                    animation: spin 1s linear infinite;
+                    display: inline-block;
+                }
+            `;
+            document.head.appendChild(style);
+            
+            // Theme functions
+            function initTheme() {
+                // Check for saved theme preference or use browser preference
+                const savedTheme = localStorage.getItem('theme') || 
+                    (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+                
+                // Apply the theme immediately to prevent flash of wrong theme
+                document.documentElement.setAttribute('data-theme', savedTheme);
+                
+                // Update icon after a short delay to ensure DOM is ready
+                setTimeout(() => {
+                    updateThemeIcon(savedTheme);
+                }, 50);
+            }
+            
+            function updateThemeIcon(theme) {
+                const themeIcon = document.getElementById('theme-icon');
+                const headerThemeIcon = document.getElementById('header-theme-icon');
+                
+                if (theme === 'dark') {
+                    // Update floating theme toggle icon
+                    if (themeIcon) {
+                        themeIcon.className = '';
+                        themeIcon.classList.add('bi', 'bi-sun-fill');
+                    }
+                    
+                    // Update header theme toggle icon
+                    if (headerThemeIcon) {
+                        headerThemeIcon.className = '';
+                        headerThemeIcon.classList.add('bi', 'bi-sun-fill', 'me-1');
+                    }
+                } else {
+                    // Update floating theme toggle icon
+                    if (themeIcon) {
+                        themeIcon.className = '';
+                        themeIcon.classList.add('bi', 'bi-moon-fill');
+                    }
+                    
+                    // Update header theme toggle icon
+                    if (headerThemeIcon) {
+                        headerThemeIcon.className = '';
+                        headerThemeIcon.classList.add('bi', 'bi-moon-fill', 'me-1');
+                    }
+                }
+            }
+            
+            function setTheme(theme) {
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+                updateThemeIcon(theme);
+            }
+
+            // Show Android instructions if on Android
+            if (/Android/i.test(navigator.userAgent)) {
+                document.getElementById('android-help')?.classList.remove('d-none');
+                
+                // Check for device orientation changes for better UI display
+                window.addEventListener('resize', function() {
+                    // This will adapt the UI automatically as needed
+                    console.log('Screen orientation changed');
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

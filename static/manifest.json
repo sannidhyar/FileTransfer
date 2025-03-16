@@ -1,0 +1,29 @@
+{
+  "name": "WiFi File Transfer",
+  "short_name": "WiFi Transfer",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3498db",
+  "description": "Transfer files between devices on the same WiFi network",
+  "icons": [
+    {
+      "src": "/static/img/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/static/img/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "orientation": "any",
+  "screenshots": [
+    {
+      "src": "/static/img/screenshot1.png",
+      "type": "image/png",
+      "sizes": "1080x1920"
+    }
+  ]
+} 
